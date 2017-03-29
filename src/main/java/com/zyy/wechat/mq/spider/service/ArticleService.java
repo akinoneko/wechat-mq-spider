@@ -9,7 +9,7 @@ import com.zyy.wechat.mq.spider.entity.Article;
 import com.zyy.wechat.mq.spider.entity.SpiderConfig;
 import com.zyy.wechat.mq.spider.entity.SpiderQueue;
 import com.zyy.wechat.mq.spider.entity.WechatMq;
-import com.zyy.wechat.mq.spider.utils.AsyncDownloadImage;
+import com.zyy.wechat.mq.spider.task.ImageDownloadTask;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -19,10 +19,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
+import javax.transaction.Transactional;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,6 +44,7 @@ public class ArticleService {
     @Autowired
     private SpiderConfig spiderConfig;
 
+    @Transactional
     public void parseWechatMqHistory(String str, String url) throws UnsupportedEncodingException {
         String biz = null;
         for (String param : url.substring(url.indexOf("?") + 1).split("&")) {
@@ -67,7 +69,7 @@ public class ArticleService {
             list = json.getJSONArray("list");
         } catch (Exception e) {
             LOGGER.error("JSON数据解析失败" + e.getMessage());
-            LOGGER.error("json->" + str);
+//            LOGGER.error("json->" + str);
             return;
         }
         for (Object object : list) {
@@ -105,7 +107,7 @@ public class ArticleService {
                         spiderQueue.setContentUrl(contentUrl);
                         spiderQueue.setDatetime(System.currentTimeMillis());
                         spiderQueueRepository.save(spiderQueue);
-                        LOGGER.debug("头条标题:" + article.getTitle());
+                        LOGGER.info("头条标题:" + article.getTitle());
                     } catch (Exception e) {
                         LOGGER.error("文章保存失败" + e.getMessage());
                     }
@@ -139,7 +141,7 @@ public class ArticleService {
                                 spiderQueue.setContentUrl(contentUrl);
                                 spiderQueue.setDatetime(System.currentTimeMillis());
                                 spiderQueueRepository.save(spiderQueue);
-                                LOGGER.debug("标题:" + article.getTitle());
+                                LOGGER.info("标题:" + article.getTitle());
                             } catch (Exception e) {
                                 LOGGER.error("文章保存失败" + e.getMessage());
                             }
@@ -151,6 +153,7 @@ public class ArticleService {
         }
     }
 
+    @Transactional
     public void updateArticleReadNumAndLikeNum(String str, String url) {
         String biz = null;
         String sn = null;
@@ -163,23 +166,28 @@ public class ArticleService {
             }
 
         }
-        //解析文章数据
-        JSONObject json = JSONObject.parseObject(str);
-        JSONObject appMsgStat = json.getJSONObject("appmsgstat");
-        int readNum = appMsgStat.getIntValue("read_num");
-        int likeNum = appMsgStat.getIntValue("like_num");
-        Article article = articleRepository.findBySnAndBiz(sn, biz);
-        if (article != null) {
-            //更新文章的阅读数和点赞数
-            article.setReadNum(readNum);
-            article.setLikeNum(likeNum);
-            article.setUpdateTime(System.currentTimeMillis());
-            articleRepository.save(article);
-            //删除采集队列中的记录
-            spiderQueueRepository.deleteBySn(sn);
+        try {
+            //解析文章数据
+            JSONObject json = JSONObject.parseObject(str);
+            JSONObject appMsgStat = json.getJSONObject("appmsgstat");
+            int readNum = appMsgStat.getIntValue("read_num");
+            int likeNum = appMsgStat.getIntValue("like_num");
+            Article article = articleRepository.findBySnAndBiz(sn, biz);
+            if (article != null) {
+                //更新文章的阅读数和点赞数
+                article.setReadNum(readNum);
+                article.setLikeNum(likeNum);
+                article.setUpdateTime(System.currentTimeMillis());
+                articleRepository.save(article);
+                //删除采集队列中的记录
+                spiderQueueRepository.deleteBySn(sn);
+            }
+        } catch (Exception e) {
+            LOGGER.error("SN=" + sn + "\nBIZ=" + biz + "\nSTR=" + str + "\nURL=" + url, e);
         }
     }
 
+    @Transactional
     public void saveArticlePage(String str, String url) {
         boolean imgDown = false;
         String biz = null;
@@ -193,60 +201,74 @@ public class ArticleService {
             }
 
         }
-        Map<String, String> urls = new HashMap<>();
+        List<String[]> urls = new ArrayList<>();
+//        Map<String, String> urls = new HashMap<>();
         Document page = Jsoup.parse(str);
-        String postUser = page.getElementById("post-user").text().trim();
+        Element postUserElement = page.getElementById("post-user");
+        String postUser = null;
+        if (postUserElement != null) {    //防止取不到文章的作者
+            postUser = postUserElement.text().trim();
+        }
+        String pageContentHtml = null;
+        Element pageContentElement = page.getElementById("js_content");
+        if (pageContentElement != null) {   //防止文章内容没有的情况
+            pageContentHtml = page.getElementById("js_content").toString();
+            //获取图片下载地址
+            for (Element element : page.getElementById("js_content").getElementsByTag("img")) {
+                String originSrc = element.attr("data-src");
+                String newSrc = "origin=" + originSrc;
 
-        String pageContentHtml = page.getElementById("js_content").toString();
-        //替换图片地址
-        for (Element element : page.getElementById("js_content").getElementsByTag("img")) {
-            String originSrc = element.attr("data-src");
-            String newSrc = "origin=" + originSrc;
-
-            pageContentHtml = pageContentHtml.replace(originSrc,
-                    spiderConfig.getImgUrlDomain() + "/" + newSrc);
-            urls.put(originSrc, newSrc);
-        }
-        //替换视频
-        pageContentHtml = pageContentHtml.replace("preview.html", "player.html");
-        Document pageContent = Jsoup.parse(pageContentHtml.replace("data-src", "src"));
-        String content = pageContent.getElementById("js_content").html().trim();
-        Article article = articleRepository.findBySnAndBiz(sn, biz);
-        if (null != article) {
-            imgDown = article.getContent() == null;
-            article.setAuthor(postUser);
-            article.setContent(content);
-            article.setUpdateTime(System.currentTimeMillis());
-            articleRepository.save(article);
-        }
-        //获取公众号的昵称和头像
-        String icon = null;
-        String name = null;
-        Pattern pattern = Pattern.compile("var ori_head_img_url = \"(.*?)\";"); //匹配头像地址
-        Matcher matcher = pattern.matcher(page.toString());
-        while (matcher.find()) {
-            icon = matcher.group();
-            icon = icon.substring(icon.indexOf("http"), icon.length() - 2);
-        }
-        pattern = Pattern.compile("var nickname = \"(.*?)\";");
-        matcher = pattern.matcher(page.toString());
-        while (matcher.find()) {
-            name = matcher.group();
-            name = name.substring(16, name.length() - 2);
-        }
-        WechatMq wechatMq = wechatMqRepository.findByBiz(biz);
-        if (null != name && icon != null) {
-            String newSrc = "origin=" + icon;
-            urls.put(icon, newSrc); //下载头像
-            if (!name.equals(wechatMq.getName()) || !icon.equals(wechatMq.getIcon())) {
-                wechatMq.setName(name);
-                wechatMq.setIcon(spiderConfig.getImgUrlDomain() + "/" + icon);
-                wechatMqRepository.save(wechatMq);
+//                pageContentHtml = pageContentHtml.replace(originSrc,
+//                        spiderConfig.getImgUrlDomain() + "/" + newSrc);
+//                urls.put(originSrc, newSrc);
+                urls.add(new String[]{originSrc, newSrc});
             }
-        }
-        //异步下载图片
-        if (imgDown) {
-            AsyncDownloadImage.asyncDownloadImage(urls);
+            //替换视频与图片地址
+            if (pageContentHtml == null) pageContentHtml = "";
+            pageContentHtml = pageContentHtml.replace("data-src=\"",
+                    "src=\"http://" + spiderConfig.getImgUrlDomain() + "/origin=");
+            pageContentHtml = pageContentHtml.replace("preview.html", "player.html");
+            Document pageContent = Jsoup.parse(pageContentHtml.replace("data-src", "src"));
+            String content = pageContent.getElementById("js_content").html().trim();
+            Article article = articleRepository.findBySnAndBiz(sn, biz);
+            if (null != article) {
+                imgDown = article.getContent() == null;
+                article.setAuthor(postUser);
+                article.setContent(content);
+                article.setUpdateTime(System.currentTimeMillis());
+                articleRepository.save(article);
+            }
+            //获取公众号的昵称和头像
+            String icon = null;
+            String name = null;
+            Pattern pattern = Pattern.compile("var ori_head_img_url = \"(.*?)\";"); //匹配头像地址
+            Matcher matcher = pattern.matcher(page.toString());
+            while (matcher.find()) {
+                icon = matcher.group();
+                icon = icon.substring(icon.indexOf("http"), icon.length() - 2);
+            }
+            pattern = Pattern.compile("var nickname = \"(.*?)\";");
+            matcher = pattern.matcher(page.toString());
+            while (matcher.find()) {
+                name = matcher.group();
+                name = name.substring(16, name.length() - 2);
+            }
+            WechatMq wechatMq = wechatMqRepository.findByBiz(biz);
+            if (null != name && icon != null) {
+                String newSrc = "origin=" + icon;
+//                urls.put(icon, newSrc); //下载头像
+                urls.add(new String[]{icon, newSrc});
+                if (!name.equals(wechatMq.getName()) || !icon.equals(wechatMq.getIcon())) {
+                    wechatMq.setName(name);
+                    wechatMq.setIcon(spiderConfig.getImgUrlDomain() + "/" + icon);
+                    wechatMqRepository.save(wechatMq);
+                }
+            }
+            //添加图片到下载任务队列中
+            if (imgDown) {
+                ImageDownloadTask.addImageUrlToQueue(urls);
+//                AsyncDownloadImage.asyncDownloadImage(urls);
+            }
         }
     }
 

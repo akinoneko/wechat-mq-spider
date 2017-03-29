@@ -70,9 +70,13 @@ public class SpiderController {
     @RequestMapping(value = "saveWechatArticle")
     public Object saveWechatArticle(String str, String url) throws UnsupportedEncodingException {
         LOGGER.debug("抓取文章内容与图片");
-        str = HtmlUtils.htmlUnescape(URLDecoder.decode(str, "UTF-8"));
-        url = URLDecoder.decode(url, "UTF-8");
-        articleService.saveArticlePage(str, url);
+        try {
+            str = HtmlUtils.htmlUnescape(URLDecoder.decode(str, "UTF-8"));
+            url = URLDecoder.decode(url, "UTF-8");
+            articleService.saveArticlePage(str, url);
+        } catch (Exception e) {
+            LOGGER.error("保存文章异常!url->" + url);
+        }
         return "saveWechatArticle request success";
     }
 
