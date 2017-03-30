@@ -218,19 +218,22 @@ public class ArticleService {
         if (pageContentElement != null) {   //防止文章内容没有的情况
             pageContentHtml = page.getElementById("js_content").toString();
             //获取图片下载地址
+            int start = 0, end = 0;    //切割标记
+            StringBuilder htmlBuilder = new StringBuilder(pageContentHtml.length());
             for (Element element : page.getElementById("js_content").getElementsByTag("img")) {
                 String originSrc = element.attr("data-src");
+                end = pageContentHtml.indexOf(originSrc);
+                originSrc = originSrc.substring(0, originSrc.lastIndexOf("?"));
                 String newSrc = "origin=" + originSrc;
-
-//                pageContentHtml = pageContentHtml.replace(originSrc,
-//                        spiderConfig.getImgUrlDomain() + "/" + newSrc);
-//                urls.put(originSrc, newSrc);
+                htmlBuilder.append(pageContentHtml.substring(start, end));
+                htmlBuilder.append("http://").append(spiderConfig.getImgUrlDomain())
+                        .append("/").append(newSrc);
+                start = end + element.attr("data-src").length();
                 urls.add(new String[]{originSrc, newSrc});
             }
+            htmlBuilder.append(pageContentHtml.substring(start));   //尾部拼接
+            pageContentHtml = htmlBuilder.toString();
             //替换视频与图片地址
-            if (pageContentHtml == null) pageContentHtml = "";
-            pageContentHtml = pageContentHtml.replace("data-src=\"",
-                    "src=\"http://" + spiderConfig.getImgUrlDomain() + "/origin=");
             pageContentHtml = pageContentHtml.replace("preview.html", "player.html");
             Document pageContent = Jsoup.parse(pageContentHtml.replace("data-src", "src"));
             String content = pageContent.getElementById("js_content").html().trim();
@@ -241,6 +244,7 @@ public class ArticleService {
                 article.setContent(content);
                 article.setUpdateTime(System.currentTimeMillis());
                 articleRepository.save(article);
+                LOGGER.info("更新文章内容和图片,标题:" + article.getTitle());
             }
             //获取公众号的昵称和头像
             String icon = null;

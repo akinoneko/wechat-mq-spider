@@ -73,7 +73,7 @@ public class SpiderQueueService {
             List<WechatMq> wechatMqList = wechatMqPage.getContent();
             WechatMq wechatMq = wechatMqList.get(0);
             if (System.currentTimeMillis()-wechatMq.getCollect()<86400000L){
-
+                return null;
             }
 //            url = "http://mp.weixin.qq.com/mp/getmasssendmsg?__biz=" + wechatMq.getBiz()
 //                    + "#wechat_webview_type=1&wechat_redirect";
