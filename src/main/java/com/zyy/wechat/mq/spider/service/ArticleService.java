@@ -16,6 +16,7 @@ import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
@@ -102,12 +103,14 @@ public class ArticleService {
                     article.setCreateTime(System.currentTimeMillis());
                     article.setUpdateTime(System.currentTimeMillis());
                     try {
-                        articleRepository.save(article);
                         SpiderQueue spiderQueue = new SpiderQueue();
                         spiderQueue.setContentUrl(contentUrl);
                         spiderQueue.setDatetime(System.currentTimeMillis());
                         spiderQueueRepository.save(spiderQueue);
+                        articleRepository.save(article);
                         LOGGER.info("头条标题:" + article.getTitle());
+                    } catch (DataIntegrityViolationException e) {
+                        LOGGER.debug("数据库已经存在该记录,插入失败!");
                     } catch (Exception e) {
                         LOGGER.error("文章保存失败" + e.getMessage());
                     }
@@ -136,12 +139,14 @@ public class ArticleService {
                             article.setCreateTime(System.currentTimeMillis());
                             article.setUpdateTime(System.currentTimeMillis());
                             try {
-                                articleRepository.save(article);
                                 SpiderQueue spiderQueue = new SpiderQueue();
                                 spiderQueue.setContentUrl(contentUrl);
                                 spiderQueue.setDatetime(System.currentTimeMillis());
                                 spiderQueueRepository.save(spiderQueue);
+                                articleRepository.save(article);
                                 LOGGER.info("标题:" + article.getTitle());
+                            } catch (DataIntegrityViolationException e) {
+                                LOGGER.debug("数据库已经存在该记录,插入失败!");
                             } catch (Exception e) {
                                 LOGGER.error("文章保存失败" + e.getMessage());
                             }
