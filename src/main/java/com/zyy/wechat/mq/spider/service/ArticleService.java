@@ -45,7 +45,6 @@ public class ArticleService {
     @Autowired
     private SpiderConfig spiderConfig;
 
-    @Transactional
     public void parseWechatMqHistory(String str, String url) throws UnsupportedEncodingException {
         String biz = null;
         for (String param : url.substring(url.indexOf("?") + 1).split("&")) {
@@ -91,10 +90,10 @@ public class ArticleService {
                     article.setDatetime(datetime);
                     article.setContentUrl(contentUrl);
                     article.setFieldId(appMsgExtInfo.getLong("fileid"));
-                    article.setTitle(appMsgExtInfo.getString("title"));
+                    article.setTitle(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("title")));
                     article.setTitle_encode(URLEncoder.encode(appMsgExtInfo.getString("title")
                             .replace("&nbsp;", ""), "UTF-8"));
-                    article.setDigest(appMsgExtInfo.getString("digest"));
+                    article.setDigest(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("digest")));
                     article.setSourceUrl(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("source_url"))
                             .replace("\\", ""));
                     article.setCover(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("cover"))
@@ -131,7 +130,7 @@ public class ArticleService {
                             article.setTitle(multiItem.getString("title"));
                             article.setTitle_encode(URLEncoder.encode(multiItem.getString("title")
                                     .replace("&nbsp;", ""), "UTF-8"));
-                            article.setDigest(multiItem.getString("digest"));
+                            article.setDigest(HtmlUtils.htmlUnescape(multiItem.getString("digest")));
                             article.setSourceUrl(HtmlUtils.htmlUnescape(multiItem.getString("source_url"))
                                     .replace("\\", ""));
                             article.setCover(HtmlUtils.htmlUnescape(multiItem.getString("cover"))

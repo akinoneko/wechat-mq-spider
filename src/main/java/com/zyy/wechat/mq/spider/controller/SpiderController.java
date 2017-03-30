@@ -40,8 +40,13 @@ public class SpiderController {
     @RequestMapping(value = "getWechatMsgJson")
     public Object getWechatMsgJson(String str, String url) throws IOException {
         LOGGER.debug("获取微信公众号JSON消息");
-        str = HtmlUtils.htmlUnescape(URLDecoder.decode(str, "UTF-8"));
+        LOGGER.debug("原始消息:" + str);
         url = URLDecoder.decode(url, "UTF-8");
+        if (url.contains("action=home")) {  //首页内容是html转义内容需要转换一下
+            str = HtmlUtils.htmlUnescape(URLDecoder.decode(str, "UTF-8"));
+        } else {    //其余页面均是JSON格式
+            str = URLDecoder.decode(str, "UTF-8");
+        }
         articleService.parseWechatMqHistory(str, url);
         return "getWechatMsgJson request success";
     }
@@ -49,7 +54,7 @@ public class SpiderController {
     @RequestMapping(value = "getWechatMsgExt")
     public Object getWechatMsgExt(String str, String url) throws IOException {
         LOGGER.debug("获取微信公众号阅读量数据");
-        str = HtmlUtils.htmlUnescape(URLDecoder.decode(str, "UTF-8"));
+        str = URLDecoder.decode(str, "UTF-8");
         url = URLDecoder.decode(url, "UTF-8");
         articleService.updateArticleReadNumAndLikeNum(str, url);
         return "getWechatMsgExt request success";
