@@ -19,18 +19,23 @@ import java.util.Map;
  * Created by akinoneko on 2017/3/28.
  */
 @Component
-public class AsyncDownloadImage {
+public class QiniuUtil {
 
     @Autowired
     private SpiderConfig spiderConfigAutoWired;
 
     private static SpiderConfig spiderConfig;
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(AsyncDownloadImage.class);
+    private final static Logger LOGGER = LoggerFactory.getLogger(QiniuUtil.class);
+
+    private static Zone zone = Zone.autoZone();
+
+    private static Auth auth;
 
     @PostConstruct
     private void init() {
         spiderConfig = spiderConfigAutoWired;
+        auth = Auth.create(spiderConfig.getAccessKey(), spiderConfig.getSecretKey());
     }
 
     public static void asyncDownloadImage(Map<String, String> urls) {
@@ -51,9 +56,7 @@ public class AsyncDownloadImage {
         public void run() {
             //图片抓取
             LOGGER.debug("抓取图片到云存储服务器");
-            Zone zone = Zone.autoZone();
             Configuration configuration = new Configuration(zone);
-            Auth auth = Auth.create(spiderConfig.getAccessKey(), spiderConfig.getSecretKey());
             BucketManager bucketManager = new BucketManager(auth, configuration);
             for (Map.Entry<String, String> entry : urls.entrySet()) {
                 try {

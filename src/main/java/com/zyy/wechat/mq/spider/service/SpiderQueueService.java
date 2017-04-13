@@ -1,5 +1,6 @@
 package com.zyy.wechat.mq.spider.service;
 
+import com.zyy.wechat.mq.spider.annotation.ServiceLog;
 import com.zyy.wechat.mq.spider.dao.SpiderQueueRepository;
 import com.zyy.wechat.mq.spider.dao.WechatMqRepository;
 import com.zyy.wechat.mq.spider.entity.SpiderQueue;
@@ -25,6 +26,7 @@ public class SpiderQueueService {
     @Autowired
     private WechatMqRepository wechatMqRepository;
 
+    @ServiceLog
     @Transactional
     public String getHistoryPageNextUrl() {
         String url = null;
@@ -55,6 +57,7 @@ public class SpiderQueueService {
         return url;
     }
 
+    @ServiceLog
     @Transactional
     public String getArticlePageNextUrl() {
         String url = null;

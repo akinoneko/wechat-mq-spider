@@ -2,6 +2,7 @@ package com.zyy.wechat.mq.spider.service;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.zyy.wechat.mq.spider.annotation.ServiceLog;
 import com.zyy.wechat.mq.spider.dao.ArticleRepository;
 import com.zyy.wechat.mq.spider.dao.SpiderQueueRepository;
 import com.zyy.wechat.mq.spider.dao.WechatMqRepository;
@@ -10,6 +11,7 @@ import com.zyy.wechat.mq.spider.entity.SpiderConfig;
 import com.zyy.wechat.mq.spider.entity.SpiderQueue;
 import com.zyy.wechat.mq.spider.entity.WechatMq;
 import com.zyy.wechat.mq.spider.task.ImageDownloadTask;
+import com.zyy.wechat.mq.spider.utils.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -45,6 +47,7 @@ public class ArticleService {
     @Autowired
     private SpiderConfig spiderConfig;
 
+    @ServiceLog
     public void parseWechatMqHistory(String str, String url) throws UnsupportedEncodingException {
         String biz = null;
         for (String param : url.substring(url.indexOf("?") + 1).split("&")) {
@@ -90,7 +93,8 @@ public class ArticleService {
                     article.setDatetime(datetime);
                     article.setContentUrl(contentUrl);
                     article.setFieldId(appMsgExtInfo.getLong("fileid"));
-                    article.setTitle(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("title")));
+                    article.setTitle(StringUtils.filterEmoji(
+                            HtmlUtils.htmlUnescape(appMsgExtInfo.getString("title"))));
                     article.setTitle_encode(URLEncoder.encode(appMsgExtInfo.getString("title")
                             .replace("&nbsp;", ""), "UTF-8"));
                     article.setDigest(HtmlUtils.htmlUnescape(appMsgExtInfo.getString("digest")));
@@ -127,7 +131,7 @@ public class ArticleService {
                             article.setDatetime(datetime);
                             article.setContentUrl(contentUrl);
                             article.setFieldId(multiItem.getLong("fileid"));
-                            article.setTitle(multiItem.getString("title"));
+                            article.setTitle(StringUtils.filterEmoji(multiItem.getString("title")));
                             article.setTitle_encode(URLEncoder.encode(multiItem.getString("title")
                                     .replace("&nbsp;", ""), "UTF-8"));
                             article.setDigest(HtmlUtils.htmlUnescape(multiItem.getString("digest")));
@@ -157,6 +161,7 @@ public class ArticleService {
         }
     }
 
+    @ServiceLog
     @Transactional
     public void updateArticleReadNumAndLikeNum(String str, String url) {
         String biz = null;
@@ -191,6 +196,7 @@ public class ArticleService {
         }
     }
 
+    @ServiceLog
     @Transactional
     public void saveArticlePage(String str, String url) {
         boolean imgDown = false;
@@ -211,7 +217,7 @@ public class ArticleService {
         Element postUserElement = page.getElementById("post-user");
         String postUser = null;
         if (postUserElement != null) {    //防止取不到文章的作者
-            postUser = postUserElement.text().trim();
+            postUser = StringUtils.filterEmoji(postUserElement.text().trim());
         }
         String pageContentHtml = null;
         Element pageContentElement = page.getElementById("js_content");
@@ -268,7 +274,7 @@ public class ArticleService {
                 urls.add(new String[]{icon, newSrc});
                 if (!name.equals(wechatMq.getName()) || !icon.equals(wechatMq.getIcon())) {
                     wechatMq.setName(name);
-                    wechatMq.setIcon(spiderConfig.getImgUrlDomain() + "/" + icon);
+                    wechatMq.setIcon(spiderConfig.getImgUrlDomain() + "/origin=" + icon);
                     wechatMqRepository.save(wechatMq);
                 }
             }
